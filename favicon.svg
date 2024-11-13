@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Calendar base -->
+  <path 
+    d="M6 4h20c1.1 0 2 .9 2 2v20c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" 
+    fill="#4A90E2"
+  />
+  
+  <!-- Calendar dog-ear -->
+  <path 
+    d="M26 4v2c0 1.1-.9 2-2 2h-2V4h4z" 
+    fill="#3476C7"
+  />
+  
+  <!-- Plate (white circle with slight shadow) -->
+  <circle 
+    cx="16" 
+    cy="17" 
+    r="8" 
+    fill="#FFFFFF"
+    filter="drop-shadow(0 1px 1px rgba(0,0,0,0.2))"
+  />
+  
+  <!-- Meal type indicators -->
+  <!-- Breakfast (orange) -->
+  <circle 
+    cx="16" 
+    cy="14" 
+    r="1.5" 
+    fill="#FF9500"
+  />
+  
+  <!-- Lunch (green) -->
+  <circle 
+    cx="18.5" 
+    cy="19" 
+    r="1.5" 
+    fill="#34C759"
+  />
+  
+  <!-- Dinner (purple) -->
+  <circle 
+    cx="13.5" 
+    cy="19" 
+    r="1.5" 
+    fill="#AF52DE"
+  />
+</svg>
