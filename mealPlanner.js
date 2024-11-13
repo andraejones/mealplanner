@@ -15,8 +15,14 @@ class MealPlanner {
       "Think of this as your week's food story - let's write a tasty one!",
     ];
 
-    this.meals = this.loadMeals();
-    this.mealLibrary = this.loadMealLibrary();
+    this.storageManager = new StorageManager();
+    this.initialize();
+  }
+
+  async initialize() {
+    await this.storageManager.initialize();
+    await this.loadData();
+
     this.showCreatedMeals = false;
     this.initializeEventListeners();
     this.renderMealGrid();
@@ -26,8 +32,22 @@ class MealPlanner {
     this.initializeImportExport();
     this.initializeSelects();
     this.initializeTabs();
-    // Initial shopping list update
     this.updateShoppingList();
+  }
+
+  async loadData() {
+    if (this.storageManager.useGist) {
+      const data = await this.storageManager.loadFromGist();
+      if (data) {
+        this.meals = data.mealPlan;
+        this.mealLibrary = data.mealLibrary;
+        return;
+      }
+    }
+
+    // Fall back to local storage if Gist fails or isn't used
+    this.meals = this.loadMeals();
+    this.mealLibrary = this.loadMealLibrary();
   }
 
   loadMeals() {
@@ -53,10 +73,12 @@ class MealPlanner {
 
   saveMeals() {
     localStorage.setItem("mealPlan", JSON.stringify(this.meals));
+    this.storageManager.saveToGist(this.meals, this.mealLibrary);
   }
 
   saveMealLibrary() {
     localStorage.setItem("mealLibrary", JSON.stringify(this.mealLibrary));
+    this.storageManager.saveToGist(this.meals, this.mealLibrary);
   }
 
   initializeEventListeners() {
@@ -83,6 +105,10 @@ class MealPlanner {
 
     // Add initial ingredient row when the form is ready
     this.addIngredientRow();
+
+    document.getElementById("settingsBtn").addEventListener("click", () => {
+      this.storageManager.updateSettings();
+    });
   }
 
   attachIngredientEventListeners() {
@@ -106,28 +132,50 @@ class MealPlanner {
     ingredientItem.className = "ingredient-item";
 
     ingredientItem.innerHTML = `
-      <input type="text" class="ingredient-name" placeholder="Ingredient Name" required />
-      <input type="number" class="ingredient-quantity" placeholder="Quantity" min="0" step="any" required />
+      <input 
+        type="text" 
+        class="ingredient-name" 
+        placeholder="Ingredient Name" 
+        value="${ingredient.name || ""}"
+        required 
+      />
+      <input 
+        type="number" 
+        class="ingredient-quantity" 
+        placeholder="Quantity" 
+        value="${ingredient.quantity || ""}"
+        min="0" 
+        step="any" 
+        required 
+      />
       <select class="ingredient-unit" required>
-        <option value="" disabled selected>Unit</option>
-        <option value="tsp">teaspoon (tsp)</option>
-        <option value="tbsp">tablespoon (tbsp)</option>
-        <option value="cup">cup</option>
-        <option value="oz">ounces (oz)</option>
-        <option value="lb">pounds (lb)</option>
-        <option value="pkg">packages (pkg)</option>
-        <option value="unit">units</option>
+        <option value="" disabled ${
+          !ingredient.unit ? "selected" : ""
+        }>Unit</option>
+        <option value="tsp" ${
+          ingredient.unit === "tsp" ? "selected" : ""
+        }>teaspoon (tsp)</option>
+        <option value="tbsp" ${
+          ingredient.unit === "tbsp" ? "selected" : ""
+        }>tablespoon (tbsp)</option>
+        <option value="cup" ${
+          ingredient.unit === "cup" ? "selected" : ""
+        }>cup</option>
+        <option value="oz" ${
+          ingredient.unit === "oz" ? "selected" : ""
+        }>ounces (oz)</option>
+        <option value="lb" ${
+          ingredient.unit === "lb" ? "selected" : ""
+        }>pounds (lb)</option>
+        <option value="pkg" ${
+          ingredient.unit === "pkg" ? "selected" : ""
+        }>packages (pkg)</option>
+        <option value="unit" ${
+          ingredient.unit === "unit" ? "selected" : ""
+        }>units</option>
       </select>
-      <button type="button" class="btn btn-danger remove-ingredient">Remove</button>
+      <button type="button" class="btn btn-danger btn-sm remove-ingredient">×</button>
     `;
-
-    // Set input values if editing
-    if (ingredient.name) {
-      ingredientItem.querySelector(".ingredient-name").value = ingredient.name;
-      ingredientItem.querySelector(".ingredient-quantity").value =
-        ingredient.quantity;
-      ingredientItem.querySelector(".ingredient-unit").value = ingredient.unit;
-    }
 
     ingredientsList.appendChild(ingredientItem);
   }
@@ -137,16 +185,23 @@ class MealPlanner {
     const mealType = document.getElementById("mealTypeSelect").value;
     const selectedMealName = document.getElementById("mealSelect").value;
 
-    if (selectedMealName) {
-      const selectedMeal = this.mealLibrary.find(
-        (meal) => meal.name === selectedMealName
-      );
-      if (selectedMeal) {
-        if (!this.meals[day][mealType].includes(selectedMealName)) {
-          this.meals[day][mealType].push(selectedMealName);
-          this.saveMeals();
-          this.renderMealGrid();
-        }
+    if (!selectedMealName) {
+      alert("Please select a meal");
+      return;
+    }
+
+    const selectedMeal = this.mealLibrary.find(
+      (meal) => meal.name === selectedMealName
+    );
+
+    if (selectedMeal) {
+      if (!this.meals[day][mealType].includes(selectedMealName)) {
+        this.meals[day][mealType].push(selectedMealName);
+        this.saveMeals();
+        this.renderMealGrid();
+        this.updateShoppingList();
+      } else {
+        alert("This meal is already planned for this time");
       }
     }
   }
@@ -169,6 +224,21 @@ class MealPlanner {
       .getElementById("recipeInstructions")
       .value.trim();
 
+    if (!mealName) {
+      alert("Please enter a meal name");
+      return;
+    }
+
+    if (mealTypeCheckboxes.length === 0) {
+      alert("Please select at least one meal type");
+      return;
+    }
+
+    if (ingredientItems.length === 0) {
+      alert("Please add at least one ingredient");
+      return;
+    }
+
     const categories = Array.from(mealTypeCheckboxes).map((cb) => cb.value);
 
     const ingredients = Array.from(ingredientItems).map((item) => {
@@ -178,10 +248,14 @@ class MealPlanner {
       );
       const unit = item.querySelector(".ingredient-unit").value;
 
+      if (!name || isNaN(quantity) || !unit) {
+        throw new Error("Please fill in all ingredient fields");
+      }
+
       return { name, quantity, unit };
     });
 
-    if (mealName && ingredients.length > 0 && categories.length > 0) {
+    try {
       const meal = {
         name: mealName,
         categories,
@@ -194,19 +268,30 @@ class MealPlanner {
         this.mealLibrary[this.currentEditIndex] = meal;
         this.currentEditIndex = null;
       } else {
+        // Check for duplicate meal names
+        if (
+          this.mealLibrary.some(
+            (m) => m.name.toLowerCase() === mealName.toLowerCase()
+          )
+        ) {
+          alert("A meal with this name already exists");
+          return;
+        }
         // Add new meal
         this.mealLibrary.push(meal);
       }
 
       this.saveMealLibrary();
       this.renderMealLibrary();
-      this.updateMealOptions(); // Update meal options after adding or editing a meal
+      this.updateMealOptions();
 
       // Reset the form
       document.getElementById("mealLibraryForm").reset();
       document.getElementById("ingredientsList").innerHTML = "";
-      this.addIngredientRow(); // Reset ingredients list
+      this.addIngredientRow();
       document.getElementById("saveMealButton").textContent = "Save Meal";
+    } catch (error) {
+      alert(error.message);
     }
   }
 
@@ -361,17 +446,7 @@ class MealPlanner {
 
   renderMealLibrary() {
     const container = document.getElementById("mealsContainer");
-
     container.innerHTML = "";
-
-    const mealsWithIndices = this.mealLibrary.map((meal, index) => ({
-      meal,
-      originalIndex: index,
-    }));
-
-    const sortedMeals = mealsWithIndices.sort((a, b) =>
-      a.meal.name.toLowerCase().localeCompare(b.meal.name.toLowerCase())
-    );
 
     if (!this.showCreatedMeals) {
       container.style.display = "none";
@@ -380,12 +455,17 @@ class MealPlanner {
 
     container.style.display = "grid";
 
-    sortedMeals.forEach(({ meal, originalIndex }) => {
+    const sortedMeals = [...this.mealLibrary].sort((a, b) =>
+      a.name.toLowerCase().localeCompare(b.name.toLowerCase())
+    );
+
+    sortedMeals.forEach((meal, index) => {
       const mealElement = document.createElement("div");
       mealElement.className = "meal-item-card";
       mealElement.innerHTML = `
         <div class="meal-content">
-          <div>${meal.name}<span>(${meal.categories.join(", ")})</span></div>
+          <div class="meal-name">${meal.name}</div>
+          <div class="meal-category">${meal.categories.join(", ")}</div>
           <div class="ingredients-list">
             ${meal.ingredients
               .map((ing) => `• ${ing.quantity} ${ing.unit} ${ing.name}`)
@@ -405,8 +485,8 @@ class MealPlanner {
           }
         </div>
         <div class="meal-actions">
-          <button class="btn btn-primary edit-meal" data-index="${originalIndex}">Edit</button>
-          <button class="btn btn-danger remove-meal" data-index="${originalIndex}">Remove</button>
+          <button class="btn btn-primary btn-sm" onclick="mealPlanner.editMeal(${index})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="mealPlanner.removeFromLibrary(${index})">Remove</button>
         </div>
       `;
 
@@ -421,16 +501,6 @@ class MealPlanner {
             : "Hide Instructions";
         });
       }
-
-      // Add event listener to the edit button
-      const editButton = mealElement.querySelector(".edit-meal");
-      editButton.addEventListener("click", () => this.editMeal(originalIndex));
-
-      // Update remove button selector
-      const removeButton = mealElement.querySelector(".remove-meal");
-      removeButton.addEventListener("click", () =>
-        this.removeFromLibrary(originalIndex)
-      );
 
       container.appendChild(mealElement);
     });
@@ -708,8 +778,259 @@ class MealPlanner {
   }
 }
 
+class StorageManager {
+  constructor() {
+    this.gistId = localStorage.getItem("gistId");
+    this.githubToken = localStorage.getItem("githubToken");
+    this.useGist = Boolean(this.gistId && this.githubToken);
+    this.updateTimeout = null;
+    this.DELAY = 10000; // 10 seconds
+  }
+
+  async initialize() {
+    if (this.useGist) {
+      try {
+        await this.testGistConnection();
+      } catch (error) {
+        console.error("Failed to connect to GitHub Gist:", error);
+        this.useGist = false;
+      }
+    }
+  }
+
+  async updateSettings() {
+    const settingsDialog = document.createElement("dialog");
+    settingsDialog.className = "settings-dialog";
+
+    // Function to mask the Gist ID
+    const maskGistId = (gistId) => {
+      if (!gistId) return "";
+      return `${gistId.slice(0, 4)}${"*".repeat(
+        gistId.length - 8
+      )}${gistId.slice(-4)}`;
+    };
+
+    settingsDialog.innerHTML = `
+      <form method="dialog" class="settings-form">
+        <h2>GitHub Gist Settings</h2>
+        <p class="settings-description">Configure GitHub Gist to sync your meal plans across devices</p>
+        
+        <div class="form-group">
+          <label for="githubToken">GitHub Token:</label>
+          <input 
+            type="password" 
+            id="githubToken" 
+            placeholder="Enter GitHub token"
+            value="${
+              this.useGist ? "****************************************" : ""
+            }"
+            ${this.useGist ? "disabled" : ""}
+          />
+        </div>
+        
+        <div class="form-group">
+          <label for="gistId">Gist ID:</label>
+          <input 
+            type="text" 
+            id="gistId" 
+            placeholder="Enter Gist ID"
+            value="${this.useGist ? maskGistId(this.gistId) : ""}"
+            ${this.useGist ? "disabled" : ""}
+          />
+        </div>
+        
+        ${
+          this.useGist
+            ? `
+          <div class="connection-status">
+            <span class="status-icon">✓</span>
+            Connected to GitHub Gist
+          </div>
+        `
+            : ""
+        }
+        
+        <div class="settings-actions">
+          <div class="dialog-buttons">
+            <button type="button" class="btn btn-danger" id="resetApp">Reset App</button>
+            <button type="button" class="btn btn-secondary" id="cancelSettings">Cancel</button>
+            ${
+              !this.useGist
+                ? `
+              <button type="submit" class="btn btn-primary" id="saveSettings">Save</button>
+            `
+                : ""
+            }
+          </div>
+        </div>
+      </form>
+    `;
+
+    document.body.appendChild(settingsDialog);
+
+    const closeDialog = () => {
+      settingsDialog.close();
+      settingsDialog.remove();
+    };
+
+    settingsDialog.querySelector("#cancelSettings").onclick = closeDialog;
+
+    // Add reset handler
+    settingsDialog.querySelector("#resetApp").onclick = () => {
+      if (
+        confirm(
+          "Are you sure you want to reset the app? This will clear all data and settings."
+        )
+      ) {
+        // Clear localStorage
+        localStorage.clear();
+
+        // Clear credentials
+        this.githubToken = null;
+        this.gistId = null;
+        this.useGist = false;
+
+        alert("App has been reset. The page will now reload.");
+        window.location.reload();
+      }
+    };
+
+    const form = settingsDialog.querySelector("form");
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        const newToken = settingsDialog
+          .querySelector("#githubToken")
+          .value.trim();
+        const newGistId = settingsDialog.querySelector("#gistId").value.trim();
+
+        if (newToken && newGistId) {
+          this.githubToken = newToken;
+          this.gistId = newGistId;
+
+          try {
+            await this.testGistConnection();
+            this.useGist = true;
+            localStorage.setItem("githubToken", newToken);
+            localStorage.setItem("gistId", newGistId);
+            alert("Settings saved successfully!");
+            closeDialog();
+            // Reopen the dialog to show the disabled state
+            this.updateSettings();
+          } catch (error) {
+            alert(
+              "Failed to connect to GitHub Gist. Please check your credentials."
+            );
+            this.useGist = false;
+          }
+        } else {
+          this.useGist = false;
+          localStorage.removeItem("githubToken");
+          localStorage.removeItem("gistId");
+          alert("Gist sync disabled. Using local storage only.");
+          closeDialog();
+        }
+      };
+    }
+
+    settingsDialog.showModal();
+  }
+
+  async testGistConnection() {
+    const response = await fetch(
+      `https://api.github.com/gists/${this.gistId}`,
+      {
+        headers: {
+          Authorization: `token ${this.githubToken}`,
+          Accept: "application/vnd.github.v3+json",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error("Failed to connect to GitHub Gist");
+    }
+  }
+
+  async saveToGist(mealPlan, mealLibrary) {
+    if (!this.useGist) return;
+
+    // Clear any existing timeout
+    if (this.updateTimeout) {
+      clearTimeout(this.updateTimeout);
+    }
+
+    // Set new timeout
+    this.updateTimeout = setTimeout(async () => {
+      try {
+        const content = {
+          mealPlan,
+          mealLibrary,
+        };
+
+        const response = await fetch(
+          `https://api.github.com/gists/${this.gistId}`,
+          {
+            method: "PATCH",
+            headers: {
+              Authorization: `token ${this.githubToken}`,
+              Accept: "application/vnd.github.v3+json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              files: {
+                "meal-planner-data.json": {
+                  content: JSON.stringify(content, null, 2),
+                },
+              },
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to save to Gist");
+        }
+      } catch (error) {
+        console.error("Error saving to Gist:", error);
+        alert("Failed to save to Gist. Changes saved locally only.");
+      }
+    }, this.DELAY);
+  }
+
+  async loadFromGist() {
+    if (!this.useGist) {
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.github.com/gists/${this.gistId}`,
+        {
+          headers: {
+            Authorization: `token ${this.githubToken}`,
+            Accept: "application/vnd.github.v3+json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load from Gist");
+      }
+
+      const data = await response.json();
+      const content = data.files["meal-planner-data.json"]?.content;
+
+      return content ? JSON.parse(content) : null;
+    } catch (error) {
+      console.error("Error loading from Gist:", error);
+      alert("Failed to load from Gist. Using local storage.");
+      return null;
+    }
+  }
+}
+
 // Initialize the meal planner
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const mealPlanner = new MealPlanner();
-  window.mealPlanner = mealPlanner; // Make it available globally if needed
+  window.mealPlanner = mealPlanner;
 });
