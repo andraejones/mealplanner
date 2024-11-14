@@ -123,6 +123,7 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 1.5rem;
+  padding-bottom: 4rem;
 }
 
 .day-card {
@@ -329,6 +330,12 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  transition: all 0.2s;
+}
+
+.shopping-item:hover {
+  background-color: var(--background-color);
+  cursor: pointer;
 }
 
 .meal-sources {
@@ -485,6 +492,10 @@ textarea#recipeInstructions {
   transition: all 0.2s;
   flex: 1;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .tab:hover {
@@ -534,46 +545,6 @@ textarea#recipeInstructions {
 
 .meal-item-card {
   animation: slideIn 0.3s ease-out;
-}
-
-/* Add loading state */
-.btn.loading {
-  position: relative;
-  color: transparent;
-}
-
-.btn.loading::after {
-  content: "";
-  position: absolute;
-  width: 1rem;
-  height: 1rem;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.empty-list-message {
-  text-align: center;
-  padding: 2rem;
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-  font-style: italic;
-  background: var(--card-background);
-  border-radius: var(--radius);
-  border: 2px dashed var(--border-color);
-  margin: 1rem 0;
-}
-
-.empty-list-message:hover {
-  transform: none;
-  border-color: var(--border-color);
 }
 
 .settings-dialog {
@@ -628,21 +599,8 @@ textarea#recipeInstructions {
   font-size: 1rem;
 }
 
-.dialog-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-}
-
 .settings-actions {
   margin-top: 2rem;
-}
-
-.dialog-buttons {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
 }
 
 .form-group input:disabled {
@@ -670,4 +628,195 @@ textarea#recipeInstructions {
 .status-icon {
   font-size: 1.25rem;
   color: var(--secondary-color);
+}
+
+.meal-filter {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--card-background);
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+}
+
+.meal-filter label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.filter-btn {
+  background: var(--background-color);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+}
+
+.filter-btn:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+.filter-btn.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+@media (max-width: 768px) {
+  .filter-buttons {
+    justify-content: space-between;
+  }
+
+  .filter-btn {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}
+
+.search-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.625rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  background-color: var(--background-color);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.save-progress {
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card-background);
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  z-index: 1000;
+  display: none;
+  white-space: nowrap;
+}
+
+.save-progress .progress-bar-container {
+  width: 300px;
+  height: 6px;
+  background-color: var(--background-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+.save-progress .progress-bar {
+  height: 100%;
+  width: 0;
+  background-color: var(--primary-color);
+  transition: width 0.1s linear;
+  border-radius: var(--radius-sm);
+}
+
+.save-progress .save-text {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.planner-view {
+  position: relative;
+  padding-top: 30px;
+}
+
+.clear-filter-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+  padding: 1rem;
+  width: 100%;
+  background: var(--card-background);
+  border-top: 1px solid var(--border-color);
+}
+
+.clear-filter-container .btn {
+  width: 90%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  background: var(--primary-color);
+  color: white;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.clear-filter-container .btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+#mealGrid {
+  display: flex;
+  flex-direction: column;
+}
+
+.meal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.empty-list-message {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  font-style: italic;
+  background: var(--card-background);
+  border-radius: var(--radius);
+  border: 2px dashed var(--border-color);
+  margin: 1rem 0;
+}
+
+/* Only apply hover effects to shopping items when not empty */
+.shopping-item:not(.empty-list-message) {
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.shopping-item:not(.empty-list-message):hover {
+  background-color: var(--background-color);
+}
+
+.shopping-list li:not(:has(.empty-list-message)):hover {
+  transform: translateX(4px);
+  border-color: var(--primary-color);
+}
+
+/* Mobile styles for tabs */
+@media (max-width: 768px) {
+  .tab {
+    flex-direction: column;
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .tab .icon {
+    font-size: 1.25rem;
+    margin-bottom: 0.25rem;
+  }
 }

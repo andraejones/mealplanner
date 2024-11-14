@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Family Meal Planner</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   </head>
   <body>
     <div class="container">
@@ -15,6 +15,13 @@
       </header>
 
       <div id="plannerView" class="planner-view">
+        <div class="save-progress">
+          <div class="save-text">Saving to Cloud:</div>
+          <div class="progress-bar-container">
+            <div class="progress-bar"></div>
+          </div>
+        </div>
+
         <nav class="tabs">
           <button class="tab active" data-tab="mealLibrary">
             <span class="icon">📚</span>
@@ -56,6 +63,10 @@
                     ><input type="checkbox" name="mealType" value="dinner" />
                     Dinner</label
                   >
+                  <label
+                    ><input type="checkbox" name="mealType" value="snack" />
+                    Snack</label
+                  >
                 </div>
               </div>
 
@@ -80,7 +91,7 @@
             </form>
             <div class="meal-library-header">
               <label class="toggle-meals">
-                <input type="checkbox" id="toggleMeals" /> Show Created Meals
+                <input type="checkbox" id="toggleMeals" /> Show Meals
               </label>
               <div class="meal-library-actions">
                 <button id="exportMeals" class="btn btn-secondary">
@@ -100,6 +111,45 @@
                 </button>
               </div>
             </div>
+            <div class="meal-filter">
+              <div
+                class="filter-section"
+                role="group"
+                aria-label="Filter by meal type"
+              >
+                <div class="filter-buttons">
+                  <button
+                    class="btn btn-sm filter-btn active"
+                    data-filter="all"
+                  >
+                    All
+                  </button>
+                  <button class="btn btn-sm filter-btn" data-filter="breakfast">
+                    Breakfast
+                  </button>
+                  <button class="btn btn-sm filter-btn" data-filter="lunch">
+                    Lunch
+                  </button>
+                  <button class="btn btn-sm filter-btn" data-filter="dinner">
+                    Dinner
+                  </button>
+                  <button class="btn btn-sm filter-btn" data-filter="snack">
+                    Snack
+                  </button>
+                </div>
+              </div>
+              <div class="search-section">
+                <label for="mealSearch">Search meals:</label>
+                <input
+                  type="text"
+                  id="mealSearch"
+                  name="mealSearch"
+                  class="search-input"
+                  placeholder="Search by meal name or ingredient..."
+                  aria-label="Search meals"
+                />
+              </div>
+            </div>
             <div id="mealsContainer" class="meals-list"></div>
           </div>
         </div>
@@ -112,7 +162,7 @@
                 <select id="daySelect"></select>
                 <select id="mealTypeSelect"></select>
                 <select id="mealSelect" required>
-                  <option value="">-- Select a Meal --</option>
+                  <option value="">-- Select an Item --</option>
                 </select>
               </div>
               <button type="submit" class="btn btn-success">Add to Plan</button>

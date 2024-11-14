@@ -17,35 +17,67 @@ class MealPlanner {
 
     this.storageManager = new StorageManager();
     this.initialize();
+    this.currentFilter = "all";
+    this.mealGridFilter = null;
   }
 
   async initialize() {
     await this.storageManager.initialize();
     await this.loadData();
 
+    // Initialize meals if they don't exist
+    if (!this.meals) {
+      this.meals = {
+        Sunday: { breakfast: [], lunch: [], dinner: [] },
+        Monday: { breakfast: [], lunch: [], dinner: [] },
+        Tuesday: { breakfast: [], lunch: [], dinner: [] },
+        Wednesday: { breakfast: [], lunch: [], dinner: [] },
+        Thursday: { breakfast: [], lunch: [], dinner: [] },
+        Friday: { breakfast: [], lunch: [], dinner: [] },
+        Saturday: { breakfast: [], lunch: [], dinner: [] },
+        Snacks: { snack: [] },
+      };
+    }
+
+    // Ensure Snacks structure exists
+    if (!this.meals.Snacks || !this.meals.Snacks.snack) {
+      this.meals.Snacks = { snack: [] };
+    }
+
     this.showCreatedMeals = false;
     this.initializeEventListeners();
+    this.initializeSelects();
+    this.initializeTabs();
     this.renderMealGrid();
     this.renderMealLibrary();
     this.attachIngredientEventListeners();
     this.currentEditIndex = null;
     this.initializeImportExport();
-    this.initializeSelects();
-    this.initializeTabs();
     this.updateShoppingList();
   }
 
   async loadData() {
+    // First try to load from Gist if credentials exist
     if (this.storageManager.useGist) {
-      const data = await this.storageManager.loadFromGist();
-      if (data) {
-        this.meals = data.mealPlan;
-        this.mealLibrary = data.mealLibrary;
-        return;
+      try {
+        const data = await this.storageManager.loadFromGist();
+        if (data) {
+          this.meals = data.mealPlan;
+          this.mealLibrary = data.mealLibrary;
+          // Also update local storage as backup
+          localStorage.setItem("mealPlan", JSON.stringify(this.meals));
+          localStorage.setItem("mealLibrary", JSON.stringify(this.mealLibrary));
+          console.log("Data loaded from Gist successfully");
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to load from Gist:", error);
+        alert("Failed to load from Gist. Loading from local storage instead.");
       }
     }
 
-    // Fall back to local storage if Gist fails or isn't used
+    // Fall back to local storage if Gist fails or isn't configured
+    console.log("Loading from local storage");
     this.meals = this.loadMeals();
     this.mealLibrary = this.loadMealLibrary();
   }
@@ -62,7 +94,14 @@ class MealPlanner {
           Thursday: { breakfast: [], lunch: [], dinner: [] },
           Friday: { breakfast: [], lunch: [], dinner: [] },
           Saturday: { breakfast: [], lunch: [], dinner: [] },
+          Snacks: { snack: [] },
         };
+
+    // Ensure Snacks day has snack array (for backward compatibility)
+    if (!meals.Snacks || !meals.Snacks.snack) {
+      meals.Snacks = { snack: [] };
+    }
+
     return meals;
   }
 
@@ -113,9 +152,10 @@ class MealPlanner {
 
   attachIngredientEventListeners() {
     const addIngredientButton = document.getElementById("addIngredient");
-    addIngredientButton.addEventListener("click", () =>
-      this.addIngredientRow()
-    );
+    addIngredientButton.addEventListener("click", () => {
+      const currentCount = document.querySelectorAll(".ingredient-item").length;
+      this.addIngredientRow({}, currentCount);
+    });
 
     document
       .getElementById("ingredientsList")
@@ -126,7 +166,7 @@ class MealPlanner {
       });
   }
 
-  addIngredientRow(ingredient = {}) {
+  addIngredientRow(ingredient = {}, index) {
     const ingredientsList = document.getElementById("ingredientsList");
     const ingredientItem = document.createElement("div");
     ingredientItem.className = "ingredient-item";
@@ -135,6 +175,8 @@ class MealPlanner {
       <input 
         type="text" 
         class="ingredient-name" 
+        id="ingredientName_${index}"
+        name="ingredientName_${index}"
         placeholder="Ingredient Name" 
         value="${ingredient.name || ""}"
         required 
@@ -142,13 +184,20 @@ class MealPlanner {
       <input 
         type="number" 
         class="ingredient-quantity" 
+        id="ingredientQuantity_${index}"
+        name="ingredientQuantity_${index}"
         placeholder="Quantity" 
         value="${ingredient.quantity || ""}"
         min="0" 
         step="any" 
         required 
       />
-      <select class="ingredient-unit" required>
+      <select 
+        class="ingredient-unit" 
+        id="ingredientUnit_${index}"
+        name="ingredientUnit_${index}"
+        required
+      >
         <option value="" disabled ${
           !ingredient.unit ? "selected" : ""
         }>Unit</option>
@@ -174,7 +223,12 @@ class MealPlanner {
           ingredient.unit === "unit" ? "selected" : ""
         }>units</option>
       </select>
-      <button type="button" class="btn btn-danger btn-sm remove-ingredient">×</button>
+      <button 
+        type="button" 
+        class="btn btn-danger btn-sm remove-ingredient"
+        id="removeIngredient_${index}"
+        name="removeIngredient_${index}"
+      >×</button>
     `;
 
     ingredientsList.appendChild(ingredientItem);
@@ -183,7 +237,8 @@ class MealPlanner {
   addToPlan() {
     const day = document.getElementById("daySelect").value;
     const mealType = document.getElementById("mealTypeSelect").value;
-    const selectedMealName = document.getElementById("mealSelect").value;
+    const mealSelect = document.getElementById("mealSelect");
+    const selectedMealName = mealSelect.value;
 
     if (!selectedMealName) {
       alert("Please select a meal");
@@ -200,6 +255,9 @@ class MealPlanner {
         this.saveMeals();
         this.renderMealGrid();
         this.updateShoppingList();
+
+        // Reset meal select to default option
+        mealSelect.value = "";
       } else {
         alert("This meal is already planned for this time");
       }
@@ -241,21 +299,21 @@ class MealPlanner {
 
     const categories = Array.from(mealTypeCheckboxes).map((cb) => cb.value);
 
-    const ingredients = Array.from(ingredientItems).map((item) => {
-      const name = item.querySelector(".ingredient-name").value.trim();
-      const quantity = parseFloat(
-        item.querySelector(".ingredient-quantity").value
-      );
-      const unit = item.querySelector(".ingredient-unit").value;
-
-      if (!name || isNaN(quantity) || !unit) {
-        throw new Error("Please fill in all ingredient fields");
-      }
-
-      return { name, quantity, unit };
-    });
-
     try {
+      const ingredients = Array.from(ingredientItems).map((item) => {
+        const name = item.querySelector(".ingredient-name").value.trim();
+        const quantity = parseFloat(
+          item.querySelector(".ingredient-quantity").value
+        );
+        const unit = item.querySelector(".ingredient-unit").value;
+
+        if (!name || isNaN(quantity) || !unit) {
+          throw new Error("Please fill in all ingredient fields");
+        }
+
+        return { name, quantity, unit };
+      });
+
       const meal = {
         name: mealName,
         categories,
@@ -295,9 +353,19 @@ class MealPlanner {
     }
   }
 
-  removeFromLibrary(index) {
-    // Get the meal name before removing it
-    const mealToRemove = this.mealLibrary[index].name;
+  removeFromLibrary(mealName) {
+    // Find the meal in the library by name
+    const index = this.mealLibrary.findIndex((meal) => meal.name === mealName);
+    if (index === -1) return;
+
+    // If we're currently editing this meal, reset the form
+    if (this.currentEditIndex === index) {
+      document.getElementById("mealLibraryForm").reset();
+      document.getElementById("ingredientsList").innerHTML = "";
+      this.addIngredientRow();
+      document.getElementById("saveMealButton").textContent = "Save Meal";
+      this.currentEditIndex = null;
+    }
 
     // Remove from library
     this.mealLibrary.splice(index, 1);
@@ -306,13 +374,10 @@ class MealPlanner {
     Object.keys(this.meals).forEach((day) => {
       Object.keys(this.meals[day]).forEach((mealType) => {
         this.meals[day][mealType] = this.meals[day][mealType].filter(
-          (meal) => meal !== mealToRemove
+          (meal) => meal !== mealName
         );
       });
     });
-
-    // Need to update the shopping list here
-    this.updateShoppingList();
 
     // Save both meal library and planned meals
     this.saveMealLibrary();
@@ -325,6 +390,7 @@ class MealPlanner {
 
   renderMealGrid() {
     const grid = document.getElementById("mealGrid");
+    const mealPlanContent = document.getElementById("mealPlan");
     grid.innerHTML = "";
 
     const daysOrder = [
@@ -335,92 +401,123 @@ class MealPlanner {
       "Thursday",
       "Friday",
       "Saturday",
+      "Snacks",
     ];
+
+    // Create a container for the grid
+    const gridContainer = document.createElement("div");
+    gridContainer.className = "meal-grid";
 
     daysOrder.forEach((day) => {
       const dayMeals = this.meals[day];
+
+      // Skip days that don't contain filtered meals
+      if (this.mealGridFilter) {
+        const hasFilteredMeal = Object.values(dayMeals).some((meals) =>
+          meals.some((meal) => this.mealGridFilter.includes(meal))
+        );
+        if (!hasFilteredMeal) return;
+      }
+
       const dayCard = document.createElement("div");
       dayCard.className = "day-card";
 
+      // Determine which meal types to show based on the day
+      const mealTypes =
+        day === "Snacks" ? ["snack"] : ["breakfast", "lunch", "dinner"];
+
       dayCard.innerHTML = `
-              <h2>${day}</h2>
-              <div class="meal-list">
-                  ${Object.entries(dayMeals)
-                    .map(
-                      ([mealType, meals]) => `
-                      <div class="meal-item">
-                          <div class="meal-details">
-                              <strong>${
-                                mealType.charAt(0).toUpperCase() +
-                                mealType.slice(1)
-                              }:</strong>
-                              ${
-                                meals.length > 0
-                                  ? meals
-                                      .map((meal) => {
-                                        const mealData = this.mealLibrary.find(
-                                          (m) => m.name === meal
-                                        );
-                                        const ingredients = mealData
-                                          ? mealData.ingredients
-                                              .map(
-                                                (ing) =>
-                                                  `<li>${ing.quantity} ${ing.unit} ${ing.name}</li>`
-                                              )
-                                              .join("")
-                                          : "";
+        <h2>${day}</h2>
+        <div class="meal-list">
+          ${mealTypes
+            .map(
+              (mealType) => `
+              <div class="meal-item">
+                <div class="meal-details">
+                  <strong>${
+                    mealType.charAt(0).toUpperCase() + mealType.slice(1)
+                  }:</strong>
+                  ${
+                    dayMeals[mealType] && dayMeals[mealType].length > 0
+                      ? dayMeals[mealType]
+                          .map((meal) => {
+                            const mealData = this.mealLibrary.find(
+                              (m) => m.name === meal
+                            );
+                            const ingredients = mealData
+                              ? mealData.ingredients
+                                  .map(
+                                    (ing) =>
+                                      `<li>${ing.quantity} ${ing.unit} ${ing.name}</li>`
+                                  )
+                                  .join("")
+                              : "";
 
-                                        return `
-                                    <div class="planned-meal">
-                                      <div class="meal-header">
-                                        <button class="btn btn-danger btn-sm" onclick="mealPlanner.removeMeal('${day}', '${mealType}', '${meal}')">×</button>
-                                        <span class="meal-name" onclick="mealPlanner.toggleRecipe(this)">${meal}</span>
-                                      </div>
-                                      <div class="recipe-details">
-                                        <strong>Ingredients:</strong>
-                                        <ul class="recipe-ingredients">
-                                          ${ingredients}
-                                        </ul>
-                                        ${
-                                          mealData.instructions
-                                            ? `
-                                          <strong>Instructions:</strong>
-                                          <div class="recipe-instructions">${mealData.instructions}</div>
-                                        `
-                                            : ""
-                                        }
-                                      </div>
-                                    </div>
-                                    `;
-                                      })
-                                      .join("")
-                                  : "No meals planned"
-                              }
-                          </div>
-                      </div>
-                  `
-                    )
-                    .join("")}
+                            return `
+                              <div class="planned-meal">
+                                <div class="meal-header">
+                                  <button class="btn btn-danger btn-sm" onclick="mealPlanner.removeMeal('${day}', '${mealType}', '${meal}')">×</button>
+                                  <span class="meal-name" onclick="mealPlanner.toggleRecipe(this)">${meal}</span>
+                                </div>
+                                <div class="recipe-details">
+                                  <strong>Ingredients:</strong>
+                                  <ul class="recipe-ingredients">
+                                    ${ingredients}
+                                  </ul>
+                                  ${
+                                    mealData?.instructions
+                                      ? `
+                                    <strong>Instructions:</strong>
+                                    <div class="recipe-instructions">${mealData.instructions}</div>
+                                  `
+                                      : ""
+                                  }
+                                </div>
+                              </div>
+                            `;
+                          })
+                          .join("")
+                      : "No meals planned"
+                  }
+                </div>
               </div>
-              ${
-                Object.values(dayMeals).some((meals) => meals.length > 0)
-                  ? `<div class="day-card-actions">
-                       <button class="btn btn-danger" onclick="mealPlanner.clearDay('${day}')">
-                         Clear Day
-                       </button>
-                     </div>`
-                  : ""
-              }
-          `;
+            `
+            )
+            .join("")}
+        </div>
+        ${
+          Object.values(dayMeals).some((meals) => meals.length > 0)
+            ? `<div class="day-card-actions">
+                 <button class="btn btn-danger" onclick="mealPlanner.clearDay('${day}')">
+                   ${day === "Snacks" ? "Clear Snacks" : "Clear Day"}
+                 </button>
+               </div>`
+            : ""
+        }
+      `;
 
-      grid.appendChild(dayCard);
+      gridContainer.appendChild(dayCard);
     });
+
+    // Add the grid container to the main grid element
+    grid.appendChild(gridContainer);
+
+    // Add clear filter button if filter is active
+    if (this.mealGridFilter) {
+      const clearFilterBtn = document.createElement("div");
+      clearFilterBtn.className = "clear-filter-container";
+      clearFilterBtn.innerHTML = `
+        <button class="btn btn-secondary" onclick="mealPlanner.clearMealFilter()">
+          Clear Filter
+        </button>
+      `;
+      grid.appendChild(clearFilterBtn);
+    }
 
     this.updateShoppingList();
   }
 
   toggleRecipe(element) {
-    // Find recipe details within the parent planned-meal div
     const plannedMeal = element.closest(".planned-meal");
     const recipeDetails = plannedMeal.querySelector(".recipe-details");
     const allRecipeDetails = document.querySelectorAll(".recipe-details");
@@ -446,20 +543,66 @@ class MealPlanner {
 
   renderMealLibrary() {
     const container = document.getElementById("mealsContainer");
+    const filterSection = document.querySelector(".meal-filter");
     container.innerHTML = "";
 
     if (!this.showCreatedMeals) {
       container.style.display = "none";
+      filterSection.style.display = "none";
       return;
     }
 
     container.style.display = "grid";
+    filterSection.style.display = "block";
 
-    const sortedMeals = [...this.mealLibrary].sort((a, b) =>
+    // Initialize filter buttons
+    document.querySelectorAll(".filter-btn").forEach((button) => {
+      button.addEventListener("click", (e) => {
+        document.querySelectorAll(".filter-btn").forEach((btn) => {
+          btn.classList.remove("active");
+        });
+        e.target.classList.add("active");
+        this.currentFilter = e.target.dataset.filter;
+        this.renderMealLibrary();
+      });
+    });
+
+    // Initialize search functionality
+    const searchInput = document.getElementById("mealSearch");
+    if (!searchInput.hasEventListener) {
+      searchInput.addEventListener("input", () => {
+        this.renderMealLibrary();
+      });
+      searchInput.hasEventListener = true;
+    }
+
+    let sortedMeals = [...this.mealLibrary].sort((a, b) =>
       a.name.toLowerCase().localeCompare(b.name.toLowerCase())
     );
 
-    sortedMeals.forEach((meal, index) => {
+    // Apply category filter
+    if (this.currentFilter !== "all") {
+      sortedMeals = sortedMeals.filter((meal) =>
+        meal.categories.includes(this.currentFilter)
+      );
+    }
+
+    // Apply search filter
+    const searchTerm = searchInput.value.toLowerCase().trim();
+    if (searchTerm) {
+      sortedMeals = sortedMeals.filter((meal) => {
+        // Search in meal name
+        if (meal.name.toLowerCase().includes(searchTerm)) {
+          return true;
+        }
+        // Search in ingredients
+        return meal.ingredients.some((ingredient) =>
+          ingredient.name.toLowerCase().includes(searchTerm)
+        );
+      });
+    }
+
+    sortedMeals.forEach((meal) => {
       const mealElement = document.createElement("div");
       mealElement.className = "meal-item-card";
       mealElement.innerHTML = `
@@ -485,8 +628,12 @@ class MealPlanner {
           }
         </div>
         <div class="meal-actions">
-          <button class="btn btn-primary btn-sm" onclick="mealPlanner.editMeal(${index})">Edit</button>
-          <button class="btn btn-danger btn-sm" onclick="mealPlanner.removeFromLibrary(${index})">Remove</button>
+          <button class="btn btn-primary btn-sm" onclick="mealPlanner.editMeal('${
+            meal.name
+          }')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="mealPlanner.removeFromLibrary('${
+            meal.name
+          }')">Remove</button>
         </div>
       `;
 
@@ -504,23 +651,47 @@ class MealPlanner {
 
       container.appendChild(mealElement);
     });
+
+    // Show message if no meals match the filter and search
+    if (sortedMeals.length === 0) {
+      container.innerHTML = `
+        <div class="empty-list-message">
+          ${
+            searchTerm
+              ? `No meals found matching "${searchTerm}"`
+              : `No ${
+                  this.currentFilter === "all" ? "" : this.currentFilter
+                } meals found`
+          }
+        </div>
+      `;
+    }
   }
 
-  editMeal(index) {
-    const meal = this.mealLibrary[index];
+  editMeal(mealName) {
+    // Find the meal in the library by name
+    const index = this.mealLibrary.findIndex((meal) => meal.name === mealName);
+    if (index === -1) return;
+
+    const mealToEdit = this.mealLibrary[index];
     this.currentEditIndex = index;
 
+    // Scroll to the form
+    document
+      .getElementById("mealLibraryForm")
+      .scrollIntoView({ behavior: "smooth" });
+
     // Populate the form with existing meal data
-    document.getElementById("mealNameInput").value = meal.name;
+    document.getElementById("mealNameInput").value = mealToEdit.name;
     document.getElementById("recipeInstructions").value =
-      meal.instructions || "";
+      mealToEdit.instructions || "";
 
     // Clear existing ingredient rows
     document.getElementById("ingredientsList").innerHTML = "";
 
     // Populate ingredients
-    meal.ingredients.forEach((ingredient) => {
-      this.addIngredientRow(ingredient);
+    mealToEdit.ingredients.forEach((ingredient, index) => {
+      this.addIngredientRow(ingredient, index);
     });
 
     // Set checked checkboxes for meal types
@@ -528,7 +699,7 @@ class MealPlanner {
       'input[name="mealType"]'
     );
     mealTypeCheckboxes.forEach((checkbox) => {
-      checkbox.checked = meal.categories.includes(checkbox.value);
+      checkbox.checked = mealToEdit.categories.includes(checkbox.value);
     });
 
     // Change the submit button text to 'Update Meal'
@@ -597,20 +768,27 @@ class MealPlanner {
       `;
     } else {
       shoppingList.innerHTML = shoppingItems
-        .map(
-          (item) => `
-          <li>
-            <div class="shopping-item">
-              <span class="ingredient-detail">${item.quantity} ${item.unit} ${
-            item.name
-          }</span>
-              <span class="meal-sources">Used in: ${Array.from(item.meals).join(
-                " | "
-              )}</span>
-            </div>
-          </li>
-        `
-        )
+        .map((item) => {
+          // Properly escape the meals array for the onclick attribute
+          const mealsJSON = JSON.stringify(Array.from(item.meals))
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "\\'");
+
+          return `
+              <li>
+                <div class="shopping-item" onclick="mealPlanner.filterMealsByIngredient('${
+                  item.name
+                }', '${mealsJSON}')">
+                  <span class="ingredient-detail">${item.quantity} ${
+            item.unit
+          } ${item.name}</span>
+                  <span class="meal-sources">Used in: ${Array.from(
+                    item.meals
+                  ).join(" | ")}</span>
+                </div>
+              </li>
+            `;
+        })
         .join("");
     }
   }
@@ -720,6 +898,7 @@ class MealPlanner {
       "Thursday",
       "Friday",
       "Saturday",
+      "Snacks",
     ];
     daySelect.innerHTML = days
       .map((day) => `<option value="${day}">${day}</option>`)
@@ -727,18 +906,28 @@ class MealPlanner {
 
     // Initialize meal type select
     const mealTypeSelect = document.getElementById("mealTypeSelect");
-    const mealTypes = ["breakfast", "lunch", "dinner"];
-    mealTypeSelect.innerHTML = mealTypes
-      .map(
-        (type) =>
-          `<option value="${type}">${
-            type.charAt(0).toUpperCase() + type.slice(1)
-          }</option>`
-      )
-      .join("");
 
-    // Trigger meal options update
-    this.updateMealOptions();
+    // Add event listener to day select to update meal types
+    daySelect.addEventListener("change", () => {
+      const selectedDay = daySelect.value;
+      const mealTypes =
+        selectedDay === "Snacks" ? ["snack"] : ["breakfast", "lunch", "dinner"];
+
+      mealTypeSelect.innerHTML = mealTypes
+        .map(
+          (type) =>
+            `<option value="${type}">${
+              type.charAt(0).toUpperCase() + type.slice(1)
+            }</option>`
+        )
+        .join("");
+
+      // Update meal options based on new meal type
+      this.updateMealOptions();
+    });
+
+    // Trigger initial meal type options
+    daySelect.dispatchEvent(new Event("change"));
   }
 
   initializeTabs() {
@@ -776,6 +965,38 @@ class MealPlanner {
     );
     return this.emptyListMessages[randomIndex];
   }
+
+  filterMealsByIngredient(ingredientName, mealsJSON) {
+    try {
+      const mealNames = JSON.parse(mealsJSON.replace(/&quot;/g, '"'));
+      this.mealGridFilter = mealNames;
+
+      // Switch to meal plan tab
+      const mealPlanTab = document.querySelector('[data-tab="mealPlan"]');
+      const mealPlanContent = document.getElementById("mealPlan");
+
+      // Remove active class from all tabs and contents
+      document
+        .querySelectorAll(".tab")
+        .forEach((tab) => tab.classList.remove("active"));
+      document
+        .querySelectorAll(".tab-content")
+        .forEach((content) => content.classList.remove("active"));
+
+      // Activate meal plan tab and content
+      mealPlanTab.classList.add("active");
+      mealPlanContent.classList.add("active");
+
+      this.renderMealGrid();
+    } catch (error) {
+      console.error("Error parsing meals JSON:", error);
+    }
+  }
+
+  clearMealFilter() {
+    this.mealGridFilter = null;
+    this.renderMealGrid();
+  }
 }
 
 class StorageManager {
@@ -784,7 +1005,51 @@ class StorageManager {
     this.githubToken = localStorage.getItem("githubToken");
     this.useGist = Boolean(this.gistId && this.githubToken);
     this.updateTimeout = null;
-    this.DELAY = 10000; // 10 seconds
+    this.progressInterval = null;
+    this.DELAY = 5000; // 5 seconds
+  }
+
+  showProgress() {
+    const progressElement = document.querySelector(".save-progress");
+    const progressBar = progressElement.querySelector(".progress-bar");
+    progressElement.style.display = "block";
+    progressBar.style.width = "0%";
+
+    let progress = 0;
+    const updateInterval = 100; // Update every 100ms
+    const incrementAmount = (updateInterval / this.DELAY) * 100;
+
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+    }
+
+    this.progressInterval = setInterval(() => {
+      progress += incrementAmount;
+      if (progress >= 100) {
+        clearInterval(this.progressInterval);
+        setTimeout(() => {
+          progressElement.style.display = "none";
+        }, 500);
+      } else {
+        progressBar.style.width = `${progress}%`;
+      }
+    }, updateInterval);
+  }
+
+  hideProgress() {
+    const progressElement = document.querySelector(".save-progress");
+    const progressBar = progressElement.querySelector(".progress-bar");
+    progressBar.style.width = "100%";
+
+    setTimeout(() => {
+      progressElement.style.display = "none";
+      progressBar.style.width = "0%";
+    }, 500);
+
+    if (this.progressInterval) {
+      clearInterval(this.progressInterval);
+      this.progressInterval = null;
+    }
   }
 
   async initialize() {
@@ -960,6 +1225,9 @@ class StorageManager {
       clearTimeout(this.updateTimeout);
     }
 
+    // Show the progress bar
+    this.showProgress();
+
     // Set new timeout
     this.updateTimeout = setTimeout(async () => {
       try {
@@ -993,6 +1261,8 @@ class StorageManager {
       } catch (error) {
         console.error("Error saving to Gist:", error);
         alert("Failed to save to Gist. Changes saved locally only.");
+      } finally {
+        this.hideProgress();
       }
     }, this.DELAY);
   }
