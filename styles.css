@@ -242,38 +242,24 @@ body {
 
 .ingredient-item {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.ingredient-item input {
-  flex: 1 1 calc(33% - 1rem);
-}
-
-.ingredient-item select {
-  flex: 1 1 calc(33% - 1rem);
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-size: 1rem;
-}
-
-.remove-ingredient {
-  flex: 0 0 auto;
-  align-self: center;
-}
-
-.ingredient-item {
-  display: flex;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
 
-.ingredient-item input {
+.ingredient-item input.ingredient-name {
+  flex: 3;
+}
+
+.ingredient-item input.ingredient-quantity {
   flex: 1;
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
+}
+
+.ingredient-item select.ingredient-unit {
+  flex: 1;
+}
+
+.ingredient-item .remove-ingredient {
+  flex: 0 0 auto;
 }
 
 .remove-ingredient {

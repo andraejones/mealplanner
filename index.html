@@ -23,11 +23,7 @@
         </div>
 
         <nav class="tabs">
-          <button class="tab active" data-tab="mealLibrary">
-            <span class="icon">📚</span>
-            Meal Library
-          </button>
-          <button class="tab" data-tab="mealPlan">
+          <button class="tab active" data-tab="mealPlan">
             <span class="icon">📅</span>
             Meal Plan
           </button>
@@ -35,9 +31,37 @@
             <span class="icon">🛒</span>
             Shopping List
           </button>
+          <button class="tab" data-tab="mealLibrary">
+            <span class="icon">📚</span>
+            Meal Library
+          </button>
         </nav>
 
-        <div id="mealLibrary" class="tab-content active">
+        <div id="mealPlan" class="tab-content active">
+          <div class="card">
+            <h2>Plan Meal</h2>
+            <form id="mealForm" class="meal-form">
+              <div class="form-row">
+                <select id="daySelect"></select>
+                <select id="mealTypeSelect"></select>
+                <select id="mealSelect" required>
+                  <option value="">-- Select an Item --</option>
+                </select>
+              </div>
+              <button type="submit" class="btn btn-success">Add to Plan</button>
+            </form>
+          </div>
+          <div id="mealGrid" class="meal-grid"></div>
+        </div>
+
+        <div id="shoppingList" class="tab-content">
+          <div class="card">
+            <h2>Shopping List</h2>
+            <ul id="shoppingItems" class="shopping-list"></ul>
+          </div>
+        </div>
+
+        <div id="mealLibrary" class="tab-content">
           <div class="card">
             <h2>Meal Library</h2>
             <form id="mealLibraryForm" class="meal-form" novalidate>
@@ -45,34 +69,37 @@
                 <input
                   type="text"
                   id="mealNameInput"
+                  name="mealNameInput"
                   placeholder="Enter meal name"
                   required
                   minlength="2"
                   maxlength="100"
                 />
-                <div id="mealTypeCheckboxes" required>
-                  <label
-                    ><input type="checkbox" name="mealType" value="breakfast" />
-                    Breakfast</label
-                  >
-                  <label
-                    ><input type="checkbox" name="mealType" value="lunch" />
-                    Lunch</label
-                  >
-                  <label
-                    ><input type="checkbox" name="mealType" value="dinner" />
-                    Dinner</label
-                  >
-                  <label
-                    ><input type="checkbox" name="mealType" value="snack" />
-                    Snack</label
-                  >
-                </div>
+              </div>
+
+              <div id="mealTypeCheckboxes" class="form-row" required>
+                <label
+                  ><input type="checkbox" name="mealType" value="breakfast" />
+                  Breakfast</label
+                >
+                <label
+                  ><input type="checkbox" name="mealType" value="lunch" />
+                  Lunch</label
+                >
+                <label
+                  ><input type="checkbox" name="mealType" value="dinner" />
+                  Dinner</label
+                >
+                <label
+                  ><input type="checkbox" name="mealType" value="snack" />
+                  Snack</label
+                >
               </div>
 
               <div id="ingredientsList">
                 <!-- Ingredient rows will be added dynamically -->
               </div>
+
               <div class="form-row">
                 <label for="recipeInstructions">Recipe Instructions:</label>
                 <textarea
@@ -82,12 +109,23 @@
                   placeholder="Enter recipe instructions..."
                 ></textarea>
               </div>
-              <button type="button" class="btn btn-primary" id="addIngredient">
-                Add Ingredient
-              </button>
-              <button type="submit" class="btn btn-success" id="saveMealButton">
-                Save Meal
-              </button>
+
+              <div class="form-row">
+                <button
+                  type="button"
+                  class="btn btn-primary"
+                  id="addIngredient"
+                >
+                  Add Ingredient
+                </button>
+                <button
+                  type="submit"
+                  class="btn btn-success"
+                  id="saveMealButton"
+                >
+                  Save Meal
+                </button>
+              </div>
             </form>
             <div class="meal-library-header">
               <label class="toggle-meals">
@@ -151,30 +189,6 @@
               </div>
             </div>
             <div id="mealsContainer" class="meals-list"></div>
-          </div>
-        </div>
-
-        <div id="mealPlan" class="tab-content">
-          <div class="card">
-            <h2>Plan Meal</h2>
-            <form id="mealForm" class="meal-form">
-              <div class="form-row">
-                <select id="daySelect"></select>
-                <select id="mealTypeSelect"></select>
-                <select id="mealSelect" required>
-                  <option value="">-- Select an Item --</option>
-                </select>
-              </div>
-              <button type="submit" class="btn btn-success">Add to Plan</button>
-            </form>
-          </div>
-          <div id="mealGrid" class="meal-grid"></div>
-        </div>
-
-        <div id="shoppingList" class="tab-content">
-          <div class="card">
-            <h2>Shopping List</h2>
-            <ul id="shoppingItems" class="shopping-list"></ul>
           </div>
         </div>
       </div>
